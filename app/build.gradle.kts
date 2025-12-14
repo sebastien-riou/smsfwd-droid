@@ -11,8 +11,8 @@ android {
         applicationId = "me.leansys.smsfwd"
         minSdk = 24
         targetSdk = 36
-        versionCode = 11
-        versionName = "v0.0.11"
+        versionCode = 12
+        versionName = "v0.0.12"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

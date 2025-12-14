@@ -107,6 +107,24 @@ public class MainActivity extends AppCompatActivity {
                 editor.apply();
             }
         });
+        TextView sendUrl = findViewById(R.id.sendUrl);
+        sendUrl.setText(getPref(R.string.pref_su));
+        sendUrl.addTextChangedListener(new TextValidator(sendUrl) {
+            @Override public void validate(TextView textView, String text) {
+                SharedPreferences.Editor editor = settings.edit();
+                editor.putString(getPrefName(R.string.pref_su), text);
+                editor.apply();
+            }
+        });
+        TextView sendUrlTxt = findViewById(R.id.sendUrlTxt);
+        sendUrlTxt.setText(getPref(R.string.pref_su_txt));
+        sendUrl.addTextChangedListener(new TextValidator(sendUrlTxt) {
+            @Override public void validate(TextView textView, String text) {
+                SharedPreferences.Editor editor = settings.edit();
+                editor.putString(getPrefName(R.string.pref_su_txt), text);
+                editor.apply();
+            }
+        });
         int versionCode = BuildConfig.VERSION_CODE;
         String versionName = BuildConfig.VERSION_NAME;
         versionName += " ("+versionCode+")";
@@ -133,28 +151,33 @@ public class MainActivity extends AppCompatActivity {
     private void refreshDstView(){
         TextView editTextDst = findViewById(R.id.editDstPhone);
         TextView mainTextView = findViewById(R.id.mainTextView);
-        //TextView sendUrlLabel = findViewById(R.id.sendUrlLabel);
         TextView sendUrl = findViewById(R.id.sendUrl);
-        TextView remoteAdminPwdLabel = findViewById(R.id.remoteAdminPwdLabel);
+        TextView sendUrlTxt = findViewById(R.id.sendUrlTxt);
         TextView remoteAdminPwd = findViewById(R.id.remoteAdminPwd);
 
         String dst = getPref(R.string.pref_dst);
+        String su = getPref(R.string.pref_su);
+        String su_txt = getPref(R.string.pref_su_txt);
         String rap = getPref(R.string.pref_rap);
+
         if(remoteAdminOnly()) {
-            mainTextView.setText("Remote Admin Only mode\nForward to: "+dst+"\nRemote Admin Password: "+rap);
-            //editTextDst.setFocusable(false);
-            editTextDst.setVisibility(View.INVISIBLE);
-            remoteAdminPwdLabel.setVisibility(View.INVISIBLE);
-            remoteAdminPwd.setVisibility(View.INVISIBLE);
+            mainTextView.setText("'Remote Admin Only' mode ON\nForward to: ");
+            editTextDst.setEnabled(false);
+            sendUrl.setEnabled(false);
+            sendUrlTxt.setEnabled(false);
+            remoteAdminPwd.setEnabled(false);
         }else{
             mainTextView.setText("Forward to:");
-            editTextDst.setVisibility(View.VISIBLE);
-            remoteAdminPwdLabel.setVisibility(View.VISIBLE);
-            remoteAdminPwd.setVisibility(View.VISIBLE);
+            editTextDst.setEnabled(true);
+            sendUrl.setEnabled(true);
+            sendUrlTxt.setEnabled(true);
+            remoteAdminPwd.setEnabled(true);
+
         }
         editTextDst.setText(dst);
-        String su = getPref(R.string.pref_su);
         sendUrl.setText(su);
+        sendUrlTxt.setText(su_txt);
+        remoteAdminPwd.setText(rap);
     }
 
     private Boolean hasPermissions(){
