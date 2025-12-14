@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">SmsFwd</string>
+    <string name="pref_dst">dst</string>
+    <string name="pref_rap">remoteAdminPwd</string>
+    <string name="pref_rao">remoteAdminOnly</string>
+    <string name="pref_su">sendUrl</string>
+    <string name="pref_su_txt">sendUrlTxt</string>
 </resources>

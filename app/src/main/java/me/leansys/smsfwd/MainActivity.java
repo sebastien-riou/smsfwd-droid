@@ -1,78 +1,203 @@
 package me.leansys.smsfwd;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
-import android.telephony.TelephonyManager;
+import android.util.Log;
+import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.Lifecycle;
+
+import com.google.android.material.snackbar.Snackbar;
+
+import java.util.HashMap;
 
 public class MainActivity extends AppCompatActivity {
     String TAG = getClass().getSimpleName();
+    static String REFRESH_UI_INTENT = "refreshUi";
     static String PREFS_NAME = "prefs";
-    static TextView textView;
-    EditText editTextDst;
-    static SharedPreferences settings;
+    static HashMap<Integer, String> prefDefaultValues;
+    private View mLayout;
+    private String[] permissions = new String[]{
+            android.Manifest.permission.READ_SMS,
+            android.Manifest.permission.SEND_SMS,
+            Manifest.permission.RECEIVE_SMS,
+            //Manifest.permission.RECEIVE_BOOT_COMPLETED,
+            Manifest.permission.INTERNET,
+            //Manifest.permission.READ_PHONE_STATE,
+            //Manifest.permission.READ_PHONE_NUMBERS
+    };
+    BroadcastReceiver refreshUiReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            refreshDstView();
+        }
+    };
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(refreshUiReceiver);
+    }
+    static String getPrefDefaultValue(@StringRes int id){
+        if(null == prefDefaultValues){
+            prefDefaultValues = new HashMap<Integer, String>();
+            prefDefaultValues.put(R.string.pref_rap,"A82FDA52B9C708BB");
+            prefDefaultValues.put(R.string.pref_rao,"false");
+            prefDefaultValues.put(R.string.pref_su_txt,"[text]");
+        }
+        return prefDefaultValues.getOrDefault(id,"");
+    }
+    String getPrefName(@StringRes int id){
+        return getResources().getString(id);
+    }
+    String getPref(@StringRes int id){
+        SharedPreferences settings = getApplicationContext().getSharedPreferences(PREFS_NAME, 0);
+        return settings.getString(getPrefName(id),getPrefDefaultValue(id));
+    }
+    void createPrefIfDontExist(@StringRes int id){
+        SharedPreferences settings = getApplicationContext().getSharedPreferences(PREFS_NAME, 0);
+        String name = getPrefName(id);
+        if(!settings.contains(name)){
+            SharedPreferences.Editor editor = settings.edit();
+            editor.putString(getPrefName(id), getPrefDefaultValue(id));
+            editor.apply();
+        }
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        createPrefIfDontExist(R.string.pref_dst);
+        createPrefIfDontExist(R.string.pref_rap);
+        createPrefIfDontExist(R.string.pref_rao);
+        createPrefIfDontExist(R.string.pref_su);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
-        ActivityCompat.requestPermissions(this,
-                new String[]{
-                        android.Manifest.permission.READ_SMS,
-                        android.Manifest.permission.SEND_SMS,
-                        Manifest.permission.RECEIVE_SMS,
-                        Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                        Manifest.permission.INTERNET,
-                        Manifest.permission.READ_PHONE_STATE
-                },
-                PackageManager.PERMISSION_GRANTED);
-        settings = getApplicationContext().getSharedPreferences(PREFS_NAME, 0);
-        SharedPreferences.Editor editor = settings.edit();
+        SharedPreferences settings = getApplicationContext().getSharedPreferences(PREFS_NAME, 0);
+        mLayout = findViewById(R.id.main);
+        TextView editTextDst = findViewById(R.id.editDstPhone);
+        editTextDst.addTextChangedListener(new TextValidator(editTextDst) {
+            @Override public void validate(TextView textView, String text) {
+                SharedPreferences.Editor editor = settings.edit();
+                editor.putString(getPrefName(R.string.pref_dst), text);
+                editor.apply();
+            }
+        });
+        TextView remoteAdminPwd = findViewById(R.id.remoteAdminPwd);
+        remoteAdminPwd.setText(getPref(R.string.pref_rap));
+        remoteAdminPwd.addTextChangedListener(new TextValidator(remoteAdminPwd) {
+            @Override public void validate(TextView textView, String text) {
+                SharedPreferences.Editor editor = settings.edit();
+                editor.putString(getPrefName(R.string.pref_rap), text);
+                editor.apply();
+            }
+        });
+        int versionCode = BuildConfig.VERSION_CODE;
+        String versionName = BuildConfig.VERSION_NAME;
+        versionName += " ("+versionCode+")";
+        TextView versionInfoView = findViewById(R.id.versionInfo);
+        versionInfoView.setText(versionName);
+
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-        textView = findViewById(R.id.thisPhone);
-        String last_msg = settings.getString("last_msg", "none");
-        Context context = getApplicationContext();
-        textView.setText(getPhoneNumber(context));
-        editTextDst = findViewById(R.id.editDstPhone);
-        if(forceDst(context)) {
-            editTextDst.setFocusable(false);
-            editTextDst.setText("Dst forced");
+
+        if(!hasPermissions()){
+            requestPermissions();
+        }
+        refreshDstView();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            registerReceiver(refreshUiReceiver, new IntentFilter(REFRESH_UI_INTENT), RECEIVER_EXPORTED);
         } else {
-            String dst = settings.getString("dst", "");
-            editTextDst.setText(dst);
-            editTextDst.addTextChangedListener(new TextValidator(editTextDst) {
-                @Override public void validate(TextView textView, String text) {
-                    editor.putString("dst", text);
-                    editor.apply();
-                }
-            });
+            registerReceiver(refreshUiReceiver, new IntentFilter(REFRESH_UI_INTENT));
         }
     }
 
-    static String getPhoneNumber(Context context){
-        TelephonyManager tMgr = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
-        return tMgr.getLine1Number();
+    private void refreshDstView(){
+        TextView editTextDst = findViewById(R.id.editDstPhone);
+        TextView mainTextView = findViewById(R.id.mainTextView);
+        //TextView sendUrlLabel = findViewById(R.id.sendUrlLabel);
+        TextView sendUrl = findViewById(R.id.sendUrl);
+        TextView remoteAdminPwdLabel = findViewById(R.id.remoteAdminPwdLabel);
+        TextView remoteAdminPwd = findViewById(R.id.remoteAdminPwd);
+
+        String dst = getPref(R.string.pref_dst);
+        String rap = getPref(R.string.pref_rap);
+        if(remoteAdminOnly()) {
+            mainTextView.setText("Remote Admin Only mode\nForward to: "+dst+"\nRemote Admin Password: "+rap);
+            //editTextDst.setFocusable(false);
+            editTextDst.setVisibility(View.INVISIBLE);
+            remoteAdminPwdLabel.setVisibility(View.INVISIBLE);
+            remoteAdminPwd.setVisibility(View.INVISIBLE);
+        }else{
+            mainTextView.setText("Forward to:");
+            editTextDst.setVisibility(View.VISIBLE);
+            remoteAdminPwdLabel.setVisibility(View.VISIBLE);
+            remoteAdminPwd.setVisibility(View.VISIBLE);
+        }
+        editTextDst.setText(dst);
+        String su = getPref(R.string.pref_su);
+        sendUrl.setText(su);
     }
 
-    static Boolean forceDst(Context context){
-        String thisPhoneNumber = getPhoneNumber(context);
-        String num_forced_dst = context.getResources().getString(R.string.num_with_forced_dst);
-        Boolean out = thisPhoneNumber.equals(num_forced_dst);
-        return out;
+    private Boolean hasPermissions(){
+        for(String permission:permissions) {
+            if (ActivityCompat.checkSelfPermission(this, permission)
+                    != PackageManager.PERMISSION_GRANTED) {
+                return Boolean.FALSE;
+            }
+        }
+        return Boolean.TRUE;
+    }
+
+    private void requestPermissions(){
+        ActivityCompat.requestPermissions(this,
+                permissions,
+                PackageManager.PERMISSION_GRANTED);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        // BEGIN_INCLUDE(onRequestPermissionsResult)
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        Boolean granted = Boolean.TRUE;
+        if (requestCode == PackageManager.PERMISSION_GRANTED) {
+            for (int grantResult : grantResults) {
+                if (grantResult != PackageManager.PERMISSION_GRANTED) {
+                    // Permission request was denied.
+                    Snackbar.make(mLayout, "permissions denied!",
+                                    Snackbar.LENGTH_SHORT)
+                            .show();
+                    granted = Boolean.FALSE;
+                    break;
+                }
+            }
+            if(granted){
+                Log.i(TAG,"Permissions granted");
+            }
+        }
+        // END_INCLUDE(onRequestPermissionsResult)
+    }
+
+    Boolean remoteAdminOnly(){
+        return getPref(R.string.pref_rao).equalsIgnoreCase("true");
     }
 }
