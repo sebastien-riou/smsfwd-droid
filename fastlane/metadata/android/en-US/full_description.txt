@@ -1,0 +1,8 @@
+Forward SMS to another phone, in a user friendly way.
+
+- It forwards received SMS via SMS or HTTP.
+- The received SMS can be still read by the user as usual.
+- The app needs only 'read/send SMS' permission.
+- It does not has access to your contact.
+- It display all its critical settings: the user always know where the messages are forwarded.
+- 'Remote Admin' feature: change the setting from a remote phone (password protected).
